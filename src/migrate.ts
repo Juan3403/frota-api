@@ -28,6 +28,17 @@ const migrations: { id: number; statements: string[] }[] = [
       `CREATE INDEX fines_vehicle_idx ON fines(vehicle_id)`,
     ],
   },
+  {
+    id: 2,
+    statements: [
+      `CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        senha_hash TEXT NOT NULL,
+        papel TEXT NOT NULL CHECK (papel IN ('admin','leitor'))
+      )`,
+    ],
+  },
 ];
 
 export async function migrate(db: Db): Promise<void> {

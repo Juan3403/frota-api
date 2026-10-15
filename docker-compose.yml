@@ -19,6 +19,9 @@ services:
     environment:
       DATABASE_URL: postgres://frota:frota@db:5432/frota
       PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (32+ caracteres)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "${API_PORT:-3100}:3000"
     depends_on:
