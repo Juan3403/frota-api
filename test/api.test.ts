@@ -4,6 +4,8 @@ import { buildApp } from '../src/app.js';
 import { createPgliteDb } from '../src/db-pglite.js';
 import { migrate } from '../src/migrate.js';
 import { criaAdminInicial } from '../src/routes/auth.js';
+import { criaNotificador, deveEnviar } from '../src/notificacao.js';
+import type { Mailer } from '../src/mailer.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -11,11 +13,15 @@ const dias = (n: number) => new Date(Date.now() + n * 86400000).toISOString().sl
 
 const SENHA = 'senha-forte-123';
 
-async function setup() {
+const enviados: { to: string; subject: string; text: string }[] = [];
+const mailerFalso: Mailer = { send: async (to, subject, text) => void enviados.push({ to, subject, text }) };
+
+async function setup(comEmail = true) {
   const db = createPgliteDb();
   await migrate(db);
   await criaAdminInicial(db, 'admin@frota.test', SENHA);
-  return buildApp(db, { jwtSecret: 'x'.repeat(32) });
+  const notificador = comEmail ? criaNotificador(db, mailerFalso, 'gestor@frota.test') : undefined;
+  return buildApp(db, { jwtSecret: 'x'.repeat(32), notificador });
 }
 
 describe('Frota API', () => {
@@ -27,6 +33,7 @@ describe('Frota API', () => {
     app.inject({ ...o, headers: { authorization: `Bearer ${token}`, ...o.headers } });
 
   beforeEach(async () => {
+    enviados.length = 0;
     app = await setup();
     token = (await login('admin@frota.test', SENHA)).json().token;
   });
@@ -129,6 +136,41 @@ describe('Frota API', () => {
     const escrita = await api({ method: 'POST', url: '/vehicles', headers: como, payload: { placa: 'ABC1D23', modelo: 'X', crlv_vencimento: dias(5) } });
     expect(escrita.statusCode).toBe(403);
     expect((await api({ method: 'POST', url: '/users', headers: como, payload: { email: 'a@b.co', senha: SENHA, papel: 'admin' } })).statusCode).toBe(403);
+  });
+
+  it('notifica vencimentos por e-mail só quando há itens', async () => {
+    const vazio = await api({ method: 'POST', url: '/vencimentos/notificar?dias=30' });
+    expect(vazio.json()).toEqual({ enviados: 0 });
+    expect(enviados).toHaveLength(0);
+
+    await criaVeiculo('AAA1A11', dias(10));
+    await criaVeiculo('BBB2B22', dias(-3));
+    const res = await api({ method: 'POST', url: '/vencimentos/notificar?dias=30' });
+    expect(res.json()).toEqual({ enviados: 2 });
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]?.to).toBe('gestor@frota.test');
+    expect(enviados[0]?.subject).toContain('2 documento(s)');
+    expect(enviados[0]?.text).toContain('CRLV BBB2B22');
+    expect(enviados[0]?.text).toContain('VENCIDO há 3 dia(s)');
+  });
+
+  it('notificar: 503 sem e-mail configurado e 403 para leitor', async () => {
+    const sem = await setup(false);
+    const t = (await sem.inject({ method: 'POST', url: '/auth/login', payload: { email: 'admin@frota.test', senha: SENHA } })).json().token;
+    const r = await sem.inject({ method: 'POST', url: '/vencimentos/notificar', headers: { authorization: `Bearer ${t}` } });
+    expect(r.statusCode).toBe(503);
+
+    await api({ method: 'POST', url: '/users', payload: { email: 'l@frota.test', senha: SENHA, papel: 'leitor' } });
+    const tl = (await login('l@frota.test', SENHA)).json().token;
+    expect((await api({ method: 'POST', url: '/vencimentos/notificar', headers: { authorization: `Bearer ${tl}` } })).statusCode).toBe(403);
+  });
+
+  it('agendador envia uma vez por dia, depois da hora configurada', () => {
+    const d = (h: number, dia = 15) => new Date(2026, 9, dia, h, 0);
+    expect(deveEnviar(d(7), 8, undefined)).toBe(false);
+    expect(deveEnviar(d(8), 8, undefined)).toBe(true);
+    expect(deveEnviar(d(15), 8, d(8).toDateString())).toBe(false);
+    expect(deveEnviar(d(8, 16), 8, d(8).toDateString())).toBe(true);
   });
 
   it('expõe OpenAPI', async () => {

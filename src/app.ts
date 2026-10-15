@@ -9,6 +9,7 @@ import { driverRoutes } from './routes/drivers.js';
 import { fineRoutes } from './routes/fines.js';
 import { expirationRoutes } from './routes/expirations.js';
 import { authRoutes } from './routes/auth.js';
+import type { Notificador } from './notificacao.js';
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -20,7 +21,7 @@ declare module '@fastify/jwt' {
 const PUBLICAS = ['/health', '/auth/login'];
 const LEITURA = ['GET', 'HEAD'];
 
-export async function buildApp(db: Db, opts: { jwtSecret: string }) {
+export async function buildApp(db: Db, opts: { jwtSecret: string; notificador?: Notificador }) {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' }).withTypeProvider<TypeBoxTypeProvider>();
 
   app.setErrorHandler((err: any, _req, reply) => {
@@ -57,7 +58,7 @@ export async function buildApp(db: Db, opts: { jwtSecret: string }) {
   await app.register(vehicleRoutes(db));
   await app.register(driverRoutes(db));
   await app.register(fineRoutes(db));
-  await app.register(expirationRoutes(db));
+  await app.register(expirationRoutes(db, opts.notificador));
 
   return app;
 }

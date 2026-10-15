@@ -10,6 +10,7 @@ API REST para controle de **multas** e **vencimentos de documentos** (CRLV de ve
 - **SQL direto com `pg`:** consultas parametrizadas, sem ORM, atrás de uma interface `Db` de um único método.
 - **Testes sem Docker:** a interface `Db` permite trocar o `pg` pelo PGlite (PostgreSQL em WASM), então os testes rodam o SQL real do Postgres em qualquer máquina e no CI.
 - **Autenticação JWT com papéis:** `admin` lê e escreve; `leitor` só consulta. Senhas guardadas com `scrypt` (sem dependência extra) e login que não revela se o e-mail existe.
+- **Notificação por e-mail testável sem SMTP:** o envio fica atrás de uma interface `Mailer`; os testes usam um falso e o `nodemailer` só entra em produção.
 - **Erros do banco viram HTTP coerente:** duplicado vira `409`, referência inexistente vira `422` e validação vira `400`.
 
 ## Rodar com Docker
@@ -49,6 +50,14 @@ curl localhost:3100/vehicles -H "Authorization: Bearer $TOKEN"
 
 No Swagger UI (`/docs`), use **Authorize** e cole o token.
 
+## Notificação de vencimentos por e-mail
+
+Opcional. Com `SMTP_HOST`, `SMTP_FROM` e `NOTIFY_TO` definidos (veja `.env.example`), a API envia **um resumo por dia**, a partir de `NOTIFY_HOUR` (hora local do servidor, padrão 8), com os documentos vencidos ou que vencem em até `NOTIFY_DAYS` dias (padrão 30). Se não houver nada a avisar, nenhum e-mail é enviado. Em caso de falha no SMTP, tenta de novo a cada 10 minutos.
+
+`POST /vencimentos/notificar?dias=30` (admin) dispara o envio na hora, útil para testar a configuração. O destinatário vem sempre de `NOTIFY_TO`, nunca da requisição.
+
+O agendador roda dentro do processo da API e guarda o último envio em memória: reiniciar a API depois do horário configurado pode reenviar o resumo do dia.
+
 ## Endpoints
 
 | Método | Rota | Descrição |
@@ -63,10 +72,7 @@ No Swagger UI (`/docs`), use **Authorize** e cole o token.
 | PATCH | `/fines/:id/status` | `aberta`, `paga` ou `recorrida` |
 | GET | `/fines/summary` | Quantidade e total por status |
 | GET | `/vencimentos?dias=30` | CRLV e CNH vencidos ou a vencer em até N dias |
+| POST | `/vencimentos/notificar?dias=30` | Envia o resumo por e-mail agora (admin) |
 | GET | `/health` | Verificação de saúde |
 
 As listagens `/vehicles`, `/drivers` e `/fines` aceitam `?limit=` (1–200, padrão 50) e `?offset=`; o total vem no header `X-Total-Count`.
-
-## Próximos passos
-
-- Notificação de vencimentos por e-mail
