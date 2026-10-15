@@ -79,6 +79,16 @@ describe('Frota API', () => {
     expect(res.json()[0].dias_restantes).toBe(-3);
   });
 
+  it('pagina listagens com limit/offset e X-Total-Count', async () => {
+    for (const p of ['AAA1A11', 'BBB2B22', 'CCC3C33']) await criaVeiculo(p);
+    const res = await app.inject({ url: '/vehicles?limit=2&offset=1' });
+    expect(res.headers['x-total-count']).toBe('3');
+    expect(res.json().map((v: { placa: string }) => v.placa)).toEqual(['BBB2B22', 'CCC3C33']);
+    expect((await app.inject({ url: '/vehicles?limit=0' })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/drivers?limit=5' })).headers['x-total-count']).toBe('0');
+    expect((await app.inject({ url: '/fines?limit=5' })).headers['x-total-count']).toBe('0');
+  });
+
   it('expõe OpenAPI', async () => {
     const res = await app.inject({ url: '/docs/json' });
     expect(res.json().paths['/vencimentos']).toBeDefined();

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import type { Db } from '../db.js';
+import { PageQuery, page } from '../pagination.js';
 
 const Vehicle = Type.Object({
   placa: Type.String({ pattern: '^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$', description: 'Placa antiga ou Mercosul' }),
@@ -11,7 +12,11 @@ const Id = Type.Object({ id: Type.Integer({ minimum: 1 }) });
 const cols = `id, placa, modelo, to_char(crlv_vencimento,'YYYY-MM-DD') AS crlv_vencimento`;
 
 export const vehicleRoutes = (db: Db): FastifyPluginAsyncTypebox => async (app) => {
-  app.get('/vehicles', { schema: { tags: ['vehicles'] } }, () => db.query(`SELECT ${cols} FROM vehicles ORDER BY placa`));
+  app.get('/vehicles', { schema: { tags: ['vehicles'], querystring: Type.Object(PageQuery) } }, async (req, reply) => {
+    const [cont] = await db.query<{ total: number }>('SELECT COUNT(*)::int AS total FROM vehicles');
+    reply.header('X-Total-Count', cont?.total ?? 0);
+    return db.query(`SELECT ${cols} FROM vehicles ORDER BY placa, id LIMIT $1 OFFSET $2`, page(req.query));
+  });
 
   app.get('/vehicles/:id', { schema: { tags: ['vehicles'], params: Id } }, async (req, reply) => {
     const [row] = await db.query(`SELECT ${cols} FROM vehicles WHERE id=$1`, [req.params.id]);

@@ -37,9 +37,9 @@ npm test
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET/POST | `/vehicles` | Lista e cria veículos |
+| GET/POST | `/vehicles` | Lista (paginada) e cria veículos |
 | GET/PUT/DELETE | `/vehicles/:id` | Consulta, atualiza e remove |
-| GET/POST | `/drivers` | Lista e cria motoristas |
+| GET/POST | `/drivers` | Lista (paginada) e cria motoristas |
 | GET/DELETE | `/drivers/:id` | Consulta e remove |
 | GET/POST | `/fines` | Lista (filtros `status`, `vehicle_id`) e cria multas |
 | PATCH | `/fines/:id/status` | `aberta`, `paga` ou `recorrida` |
@@ -47,8 +47,9 @@ npm test
 | GET | `/vencimentos?dias=30` | CRLV e CNH vencidos ou a vencer em até N dias |
 | GET | `/health` | Verificação de saúde |
 
+As listagens `/vehicles`, `/drivers` e `/fines` aceitam `?limit=` (1–200, padrão 50) e `?offset=`; o total vem no header `X-Total-Count`.
+
 ## Próximos passos
 
 - Autenticação (JWT) e papéis
-- Paginação nas listagens
 - Notificação de vencimentos por e-mail

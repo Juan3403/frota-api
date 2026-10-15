@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { Type } from '@sinclair/typebox';
 import type { Db } from '../db.js';
+import { PageQuery, page } from '../pagination.js';
 
 const Status = Type.Union([Type.Literal('aberta'), Type.Literal('paga'), Type.Literal('recorrida')]);
 const Fine = Type.Object({
@@ -20,16 +21,23 @@ export const fineRoutes = (db: Db): FastifyPluginAsyncTypebox => async (app) => 
     {
       schema: {
         tags: ['fines'],
-        querystring: Type.Object({ status: Type.Optional(Status), vehicle_id: Type.Optional(Type.Integer()) }),
+        querystring: Type.Object({
+          status: Type.Optional(Status),
+          vehicle_id: Type.Optional(Type.Integer()),
+          ...PageQuery,
+        }),
       },
     },
-    (req) =>
-      db.query(
-        `SELECT ${cols} FROM fines
-         WHERE ($1::text IS NULL OR status=$1) AND ($2::int IS NULL OR vehicle_id=$2)
-         ORDER BY data_infracao DESC`,
-        [req.query.status ?? null, req.query.vehicle_id ?? null],
-      ),
+    async (req, reply) => {
+      const filtro = [req.query.status ?? null, req.query.vehicle_id ?? null];
+      const where = `WHERE ($1::text IS NULL OR status=$1) AND ($2::int IS NULL OR vehicle_id=$2)`;
+      const [cont] = await db.query<{ total: number }>(`SELECT COUNT(*)::int AS total FROM fines ${where}`, filtro);
+      reply.header('X-Total-Count', cont?.total ?? 0);
+      return db.query(
+        `SELECT ${cols} FROM fines ${where} ORDER BY data_infracao DESC, id LIMIT $3 OFFSET $4`,
+        [...filtro, ...page(req.query)],
+      );
+    },
   );
 
   app.get('/fines/summary', { schema: { tags: ['fines'] } }, () =>
