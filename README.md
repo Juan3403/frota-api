@@ -14,10 +14,10 @@ API REST para controle de **multas** e **vencimentos de documentos** (CRLV de ve
 ## Rodar com Docker
 
 ```bash
-docker compose up --build
+docker compose up --build   # portas: API 3100, Postgres 5433 (mude com API_PORT e DB_PORT)
 ```
 
-API em http://localhost:3000 e documentação interativa em http://localhost:3000/docs.
+API em http://localhost:3100 e documentação interativa em http://localhost:3100/docs.
 
 ## Rodar localmente
 

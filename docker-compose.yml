@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: frota
       POSTGRES_DB: frota
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
       DATABASE_URL: postgres://frota:frota@db:5432/frota
       PORT: 3000
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3100}:3000"
     depends_on:
       db:
         condition: service_healthy
